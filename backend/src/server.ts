@@ -1,11 +1,26 @@
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
-const https = require('https');
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import axios from 'axios';
+import https from 'https';
 
 const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 3000;
+
+// The shape the frontend expects for each unique word.
+interface WordFrequency {
+    text: string;
+    value: number;
+}
+
+// Progress payload streamed to the client during the fetch.
+interface FetchProgress {
+    completed: number;
+    total: number;
+    collected: number;
+}
+
+type ProgressCallback = (progress: FetchProgress) => void;
 
 const httpsAgent = new https.Agent({
     keepAlive: true,
@@ -20,31 +35,39 @@ const httpClient = axios.create({
 const API_URL = 'https://random-word-api.herokuapp.com/word?number=1';
 
 // Fetch a single word from the API
-async function fetchOneWord(retries = 2) {
+async function fetchOneWord(retries = 2): Promise<string | null> {
     for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-            const { data } = await httpClient.get(API_URL);
+            const { data } = await httpClient.get<string[]>(API_URL);
             if (Array.isArray(data) && data.length > 0) {
                 return data[0];
             }
             return null;
         } catch (error) {
             if (attempt === retries) {
-                console.error('Error fetching word:', error.message);
+                const message = error instanceof Error ? error.message : String(error);
+                console.error('Error fetching word:', message);
                 return null;
             }
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second before retrying
+            await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait for 1 second before retrying
         }
     }
-};
-// Fetch multiple words concurrently with a limit on the number of concurrent requests and sending back progress updates to the client via SSE
-async function fetchWords(totalWords, concurrency, onProgress) {
-    const words = [];
+    return null; // unreachable in practice, but every code path must return
+}
+
+// Fetch multiple words concurrently with a limit on the number of concurrent
+// requests, reporting progress through an optional callback.
+async function fetchWords(
+    totalWords: number,
+    concurrency: number,
+    onProgress?: ProgressCallback,
+): Promise<string[]> {
+    const words: string[] = [];
     let nextIndex = 0;
     let completed = 0;
     const logEvery = Math.max(1, Math.floor(totalWords / 20));
 
-    async function worker() {
+    async function worker(): Promise<void> {
         while (nextIndex < totalWords) {
             nextIndex++;
             const word = await fetchOneWord();
@@ -55,7 +78,6 @@ async function fetchWords(totalWords, concurrency, onProgress) {
                 const pct = ((completed / totalWords) * 100).toFixed(0);
                 console.log(`Progress: ${completed}/${totalWords} (${pct}%) - ${words.length} words collected`);
 
-                
                 if (onProgress) {
                     onProgress({ completed, total: totalWords, collected: words.length });
                 }
@@ -68,7 +90,7 @@ async function fetchWords(totalWords, concurrency, onProgress) {
 }
 
 // get words route with SSE support
-app.get('/api/words', async (req, res) => {
+app.get('/api/words', async (req: Request, res: Response) => {
     //SSE setup
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -76,13 +98,15 @@ app.get('/api/words', async (req, res) => {
     res.flushHeaders();
 
     //Helper: write one SSE event to the open response.
-    const sendEvent = (event, data) => {
+    const sendEvent = (event: string, data: unknown): void => {
         res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
 
     //If the client disconnects mid-run, stop caring about this request.
     let clientGone = false;
-    req.on('close', () => { clientGone = true; });
+    req.on('close', () => {
+        clientGone = true;
+    });
 
     try {
         console.log('Starting 6000 API requests.');
@@ -95,11 +119,11 @@ app.get('/api/words', async (req, res) => {
         });
 
         // Count frequencies
-        const frequencyMap = {};
-        words.forEach(word => {
+        const frequencyMap: Record<string, number> = {};
+        words.forEach((word) => {
             frequencyMap[word] = (frequencyMap[word] || 0) + 1;
         });
-        const formattedData = Object.keys(frequencyMap).map(word => ({
+        const formattedData: WordFrequency[] = Object.keys(frequencyMap).map((word) => ({
             text: word,
             value: frequencyMap[word],
         }));
@@ -112,13 +136,15 @@ app.get('/api/words', async (req, res) => {
         }
         res.end();
     } catch (error) {
-        console.error('Error in /api/words route:', error);
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('Error in /api/words route:', message);
         if (!clientGone) {
             sendEvent('error', { message: 'Internal Server Error' });
         }
         res.end();
     }
 });
+
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });

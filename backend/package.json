@@ -1,10 +1,13 @@
 {
-  "name": "home-assignment-libri",
+  "name": "libri-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Word-cloud backend: fetches 6000 random words and streams frequency data over SSE.",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "nodemon server.js"
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +19,10 @@
     "express": "^5.2.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.2",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
   }
 }
