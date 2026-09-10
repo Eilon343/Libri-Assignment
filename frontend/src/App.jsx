@@ -46,7 +46,7 @@ function App() {
     <div className="app">
       <h1>Word Cloud</h1>
 
-      {loading && <LoadingBar progress={progress} /> }
+      {loading && <LoadingBar progress={progress} />}
       {error && <p className="error">Failed to load: {error}</p>}
       {!loading && !error && <WordCloud words={words} />}
     </div>

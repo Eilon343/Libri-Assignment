@@ -14,10 +14,24 @@ body {
   align-items: center;
   justify-content: center;
   gap: 24px;
+  padding: 24px;
+  box-sizing: border-box;
 }
 
 h1 {
   font-weight: 500;
+  margin: 0;
+}
+
+.word-cloud {
+  width: 100%;
+  max-width: 1400px;
+  height: auto;
+  display: block;
+}
+
+.error {
+  color: #c0392b;
 }
 
 .loading-bar {

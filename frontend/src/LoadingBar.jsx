@@ -1,7 +1,9 @@
 function LoadingBar({ progress }) {
-    const percent = progress ? Math.round((progress.completed / progress.total) * 100) : 0;
+  const percent = progress
+    ? Math.round((progress.completed / progress.total) * 100)
+    : 0;
 
- return (
+  return (
     <div className="loading-bar">
       <div className="loading-bar__label">
         {progress
@@ -19,7 +21,7 @@ function LoadingBar({ progress }) {
         <div className="loading-bar__fill" style={{ width: `${percent}%` }} />
       </div>
     </div>
- );
+  );
 }
 
 export default LoadingBar;

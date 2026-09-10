@@ -7,6 +7,10 @@ const app = express();
 app.use(cors());
 const PORT = process.env.PORT || 3000;
 
+// How many words to fetch, and how many requests to keep in flight
+const TOTAL_WORDS = 6000;
+const CONCURRENCY = 15;
+
 // The shape the frontend expects for each unique word.
 interface WordFrequency {
     text: string;
@@ -24,7 +28,7 @@ type ProgressCallback = (progress: FetchProgress) => void;
 
 const httpsAgent = new https.Agent({
     keepAlive: true,
-    maxSockets: 15,
+    maxSockets: CONCURRENCY, // one socket per worker
 });
 
 const httpClient = axios.create({
@@ -109,10 +113,10 @@ app.get('/api/words', async (req: Request, res: Response) => {
     });
 
     try {
-        console.log('Starting 6000 API requests.');
+        console.log(`Starting ${TOTAL_WORDS} API requests.`);
         const startTime = Date.now();
 
-        const words = await fetchWords(6000, 15, (progress) => {
+        const words = await fetchWords(TOTAL_WORDS, CONCURRENCY, (progress) => {
             if (!clientGone) {
                 sendEvent('progress', progress);
             }
@@ -129,7 +133,7 @@ app.get('/api/words', async (req: Request, res: Response) => {
         }));
 
         const durationInSeconds = ((Date.now() - startTime) / 1000).toFixed(2);
-        console.log(`Fetched and processed 6000 words in ${durationInSeconds} seconds.`);
+        console.log(`Fetched and processed ${words.length}/${TOTAL_WORDS} words in ${durationInSeconds} seconds.`);
 
         if (!clientGone) {
             sendEvent('done', formattedData);
