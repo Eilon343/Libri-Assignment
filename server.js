@@ -1,47 +1,74 @@
 const express = require('express');
 const axios = require('axios');
+const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const httpsAgent = new https.Agent({
+    keepAlive: true,
+    maxSockets: 15,
+});
+
+const httpClient = axios.create({
+    httpsAgent: httpsAgent,
+    timeout: 10000, // Set a timeout of 10 seconds for each request
+});
+
 const API_URL = 'https://random-word-api.herokuapp.com/word?number=1';
 
-// Function to fetch words in batches to prevent overwhelming the API with too many requests.
-async function fetchWordsInBatches(totalWords, batchSize) {
-    let allWords = [];
-
-    for (let i = 0; i < totalWords; i += batchSize) {
-        // Calculate the current batch size, which may be smaller than the specified batch size.
-        const currBatchSize = Math.min(batchSize, totalWords - i);
-        const batchPromises = [];
-
-        // Create an array of promises for the current batch of API requests.
-        for (let j = 0; j < currBatchSize; j++) {
-            batchPromises.push(axios.get(API_URL, {timeout: 5000})); // Set a timeout of 5 seconds for each request
-        }
-
+// Fetch a single word from the API
+async function fetchOneWord(retries = 2) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-            // Use Promise.allSettled to handle all promises, even if some fail.
-            const respones = await Promise.allSettled(batchPromises);
-            // Extract the words from the responses and add them to the allWords array.
-            respones.forEach(response => {
-                if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-                    allWords.push(response.data[0]);
-                }
-            });
-            console.log(`Progress: ${i + currBatchSize} / ${totalWords} words fetched.`);
+            const { data } = await httpClient.get(API_URL);
+            if (Array.isArray(data) && data.length > 0) {
+                return data[0];
+            }
+            return null;
         } catch (error) {
-            console.error('Error fetching words:', error);
+            if (attempt === retries) {
+                console.error('Error fetching word:', error.message);
+                return null;
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second before retrying
         }
     }
-    return allWords;
+};
+// Fetch multiple words concurrently with a limit on the number of concurrent requests
+async function fetchWords(totalWords, concurrency) {
+    const words = [];
+    let nextIndex = 0;
+    let completed = 0;
+    const logEvery = Math.max(1, Math.floor(totalWords / 20)); // ~20 progress lines
+
+    // Worker function to fetch words concurrently
+    async function worker() {
+        while (nextIndex < totalWords) {
+            nextIndex++;
+            // Fetch a single word
+            const word = await fetchOneWord();
+            if (word) words.push(word);
+
+            completed++;
+            if (completed % logEvery === 0 || completed === totalWords) {
+                const pct = ((completed / totalWords) * 100).toFixed(0);
+                console.log(`Progress: ${completed}/${totalWords} (${pct}%) - ${words.length} words collected`);
+            }
+        }
+    }
+
+    await Promise.all(
+        Array.from({ length: concurrency }, () => worker())
+    );
+    return words;
 }
 
 app.get('/api/words', async (req, res) => {
     try {
         console.log('Starting 6000 API requests.');
         const startTime = Date.now();
-        const words = await fetchWordsInBatches(6000, 5); // Fetch 6000 words in batches of 100
+        const words = await fetchWords(6000, 15);
 
         const frequencyMap = {};
         // Count the frequency of each word
@@ -59,7 +86,7 @@ app.get('/api/words', async (req, res) => {
         const endTime = Date.now();
         const durationInSeconds = ((endTime - startTime) / 1000).toFixed(2);
         console.log(`Fetched and processed 6000 words in ${durationInSeconds} seconds.`);
-        
+
         res.json(formattedData);
     } catch (error) {
         console.error('Error in /api/words route:', error);
