@@ -1,8 +1,10 @@
 const express = require('express');
+const cors = require('cors');
 const axios = require('axios');
 const https = require('https');
 
 const app = express();
+app.use(cors());
 const PORT = process.env.PORT || 3000;
 
 const httpsAgent = new https.Agent({
