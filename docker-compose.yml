@@ -1,0 +1,18 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+    # No "ports:" mapping - the backend is only reachable on the internal
+    # Docker network, via the "backend" hostname. The frontend's nginx proxies
+    # to it; nothing is exposed to the host.
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
