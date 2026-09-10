@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { fetchWords } from "./api";
 import WordCloud from "./WordCloud";
+import LoadingBar from "./LoadingBar";
 
 function App() {
   const [words, setWords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -14,7 +16,11 @@ function App() {
       try {
         setLoading(true);
         setError(null);
-        const data = await fetchWords();
+        const data = await fetchWords((update) => {
+          if (!cancelled) {
+            setProgress(update);
+          }
+        });
         if (!cancelled) {
           setWords(data);
         }
@@ -40,7 +46,7 @@ function App() {
     <div className="app">
       <h1>Word Cloud</h1>
 
-      {loading && <p>Loading words...</p>}
+      {loading && <LoadingBar progress={progress} /> }
       {error && <p className="error">Failed to load: {error}</p>}
       {!loading && !error && <WordCloud words={words} />}
     </div>
